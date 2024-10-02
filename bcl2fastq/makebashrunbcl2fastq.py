@@ -9,7 +9,7 @@ import subprocess
 
 input_dir = {
     #Input and output directories 
-    #Path to all scripts 
+    #Path to Experiment folder
     "pathExperimentdir": "/projects/b1042/GoyalLab/aleona/20240925_BulkRNA/240925_VH01990_3_2223NG7NX/",
     #The path to the sample sheet
     "sample_sheet":"/projects/b1042/GoyalLab/aleona/20240925_BulkRNA/240925_VH01990_3_2223NG7NX/Data/Intensities/BaseCalls/SampleSheet_bcl2fastqv5.csv",
