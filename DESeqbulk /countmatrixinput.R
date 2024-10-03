@@ -6,13 +6,15 @@ library(tidyverse)
 
 
 ##Main----------------------------------
-pathToFiles = "/projects/b1042/GoyalLab/aleona/STARAlignmentPipeline/extData4/bulkRNAseq/results/"
+pathToFiles = "/projects/b1042/GoyalLab/aleona/STARAlignmentforBulk/extData/SA_HS_MP2E7/results/"
 # pathToFiles = "/projects/b1042/GoyalLab/aleona/DESEQ/rawData/bulkRNASeq/"
-extData <- "/projects/b1042/GoyalLab/aleona/DESEQ/extData/bulkRNASeq2/"
+extData <- "/projects/b1042/GoyalLab/aleona/DESeqbulk/extractedData/SA_HS_MP2E7/matrix/"
 # extData <- "/projects/b1042/GoyalLab/aleona/DESEQ/extData/rawdata1/"
-Scripts<- "/projects/b1042/GoyalLab/aleona/DESEQ/Script/"
+Scripts<- "/projects/b1042/GoyalLab/aleona/DESeqbulk/Script/"
 
 source(paste0(Scripts, "deseqbulkfunction.R"))
+
+create_dir_if_not_exists(extData)
 
 #Search all subdirectories uniformly and don't need to distinguish between different levels of subdirectories.
 files <- list.files(path = pathToFiles, 
@@ -20,22 +22,24 @@ files <- list.files(path = pathToFiles,
                     recursive = TRUE, 
                     full.names = TRUE)
 
+# only check for L001
+filtered_files <- files[grepl("L001", files, fixed = TRUE)]
+
 # Define your patterns
-match_pattern <- "_(.+?)_(\\d+)_(S\\d+)"
-remove_prefix <- "(^.*_E7)"  # Anything before E7
-remove_suffix <- "_L001ReadsPerGene\\.out\\.tab"
-remove_prefix2 <- "(^.*_MP2)"  # Anything before MP2
+# .*?: Matches any character (except newline) zero or more times, as few times as possible (non-greedy).
+# (\\w+[-_]\\w+[-_]\\w+): captures group that matches the sample name 
+# \\w+: Matches one or more word characters
+# [-_]: Matches either a hyphen or an underscore.
+# .*?: Matches any remaining characters up to the lane identifier.
+match_pattern <- ".*?(\\w+[-_]\\w+[-_]S\\w+).*?"
+#Change match pattern as needed 
+
 
 # Process files
-datasets <- map_chr(files, function(file) {
-  if (str_detect(file, remove_prefix)) {
-    extract_sample_info(file, match_pattern, remove_prefix, remove_suffix)
-  } else if (str_detect(file, remove_prefix2)) {
-    extract_sample_info(file, match_pattern, remove_prefix2, remove_suffix)
-  } else {
-    extract_sample_info(file, match_pattern)
+datasets <- map_chr(filtered_files, function(file) {
+    extract_sample_name(file, "L001", match_pattern)
   }
-})
+)
 
 # Extract sample information. Can use Map_chr as well. 
 #datasets <- map_chr(basename(files), ~ extract_sample_info(., match_pattern, remove_prefix, remove_suffix))
@@ -43,18 +47,30 @@ datasets <- map_chr(files, function(file) {
 # Display results
 print(datasets)
 
+# [1] "ID_NK_H23-E10-7_cis1_S34"   NA                          
+# [3] "ID_NK_H23-E10-7_cis2_S35"   NA                          
+# [5] "ID_NK_H23-E10-7_cis3_S40"   NA                          
+# [7] "ID_NK_H23-E10-7_Gem1_S33"   NA                          
+# [9] "ID_NK_H23-E10-7_Gem2_S39"   NA                          
+# [11] "ID_NK_H23-E10-7_Gem3_S41"   NA                          
+# [13] "ID_NK_H23-E10-7_naive1_S38" NA                          
+# [15] "ID_NK_H23-E10-7_naive2_S42" NA                          
+# [17] "ID_NK_H23-E10-7_naive3_S44" NA                          
+# [19] "ID_NK_H23-E10-7_sot1_S36"   NA                          
+# [21] "ID_NK_H23-E10-7_sot2_S37"   NA                          
+# [23] "ID_NK_H23-E10-7_sot3_S43"   NA               
+
 columnnames <- c()
 for (i in datasets) {
-  columnnames <- c(columnnames,
-                   paste0("gene_", i),
-                   paste0(i, "_unstranded"),
-                   paste0(i, "_forwardstrand"),
-                   paste0(i, "_reversestrand")
-  )
+    columnnames <- c(columnnames,
+                     paste0("gene_", i),
+                     paste0(i, "_unstranded"),
+                     paste0(i, "_forwardstrand"),
+                     paste0(i, "_reversestrand")
+    )
 }
 
-
-finaltable <- files %>%
+finaltable <- filtered_files %>%
   # applies read_tsv function for each path in files 
   # Skip the first 4 lines and not use the first non_skipped lines as column names 
   map(read_tsv,  skip = 4, col_names = FALSE ) %>%
@@ -115,7 +131,6 @@ countmatrix <- countmatrix %>%
 names(countmatrix) <- str_replace(names(countmatrix), "_unstranded", "")
 
 
-create_dir_if_not_exists(extData)
 write_csv(finaltable, paste0(extData,"finaltable.csv"))
 write_csv(strandWiseCounts, paste0(extData,"strandWiseCounts.csv"))
 write_csv(countmatrix, paste0(extData,"countmatrix.csv"))

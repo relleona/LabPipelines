@@ -53,20 +53,34 @@ lapply(required_packages, library, character.only = TRUE)
 #'
 #' @note The function will issue a warning if the match_pattern doesn't match 
 #'       the cleaned filename.
-extract_sample_info <- function(filename, match_pattern, remove_prefix = NULL, remove_suffix = NULL) {
-  cleaned_name <- filename
-  
-  if (!is.null(remove_prefix)) {
-    cleaned_name <- str_remove(cleaned_name, paste0("^", remove_prefix))
+extract_sample_name <- function(filename, lane_identifier = "L001", pattern = NULL) {
+  # If no pattern is provided, use the default pattern
+  if (is.null(pattern)) {
+    # .*?: Matches any character (except newline) zero or more times, as few times as possible (non-greedy).
+    # (\\w+[-_]\\w+[-_]\\w+): captures group that matches the sample name 
+    # \\w+: Matches one or more word characters
+    # [-_]: Matches either a hyphen or an underscore.
+    # .*?: Matches any remaining characters up to the lane identifier.
+    pattern <- ".*?(\\w+[-_]\\w+[-_]\\w+).*?"
   }
   
-  if (!is.null(remove_suffix)) {
-    cleaned_name <- str_remove(cleaned_name, paste0(remove_suffix, "$"))
+  # Combine the pattern with the lane identifier
+  full_pattern <- paste0(pattern, lane_identifier)
+  
+  # Extract the match
+  match <- regexpr(full_pattern, filename, perl = TRUE)
+  
+  if (match == -1) {
+    warning("Pattern not found in the filename.")
+    return(NA)
   }
   
-  str_match(cleaned_name, match_pattern)[-1] %>% 
-    .[!is.na(.)] %>% 
-    paste(collapse = "_")
+  # Extract the captured group
+  start <- attr(match, "capture.start") # returns position of the pattern
+  length <- attr(match, "capture.length") # length of pattern 
+  sample_name <- substr(filename, start, start + length - 1)
+  
+  return(sample_name)
 }
 
 
