@@ -107,6 +107,7 @@ with open(job_file, 'w') as fh:
             "    --ignore-missing-controls \\",
             "    --ignore-missing-filter \\",
             "    --ignore-missing-bcls \\",
+            "    --no-lane-splitting \\",
             "    --output-dir=${OUTPUT_DIR} \\",
             "    --runfolder-dir=${FILEPATH} \\",
             "    --sample-sheet=${SAMPLE_SHEET_PATH}"
