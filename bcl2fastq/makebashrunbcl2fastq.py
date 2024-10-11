@@ -14,7 +14,7 @@ input_dir = {
     #The path to the sample sheet
     "sample_sheet":"/projects/b1042/GoyalLab/aleona/20240925_BulkRNA/240925_VH01990_3_2223NG7NX/Data/Intensities/BaseCalls/SampleSheet_bcl2fastqv5.csv",
     #The path to the output directory
-    "outputdir":"/projects/b1042/GoyalLab/aleona/STARAlignmentforBulk/Fastq/", #created or taken from ENSEMBLE/GENECODE 
+    "outputdir":"/projects/b1042/GoyalLab/aleona/STARAlignmentforBulk/fastqrun4/", #created or taken from ENSEMBLE/GENECODE 
     #Path to jobs and logs 
     "joblogpath": "/projects/b1042/GoyalLab/aleona/20240925_BulkRNA/"
 }
@@ -26,7 +26,7 @@ bash_script ={
     "partition": "genomics", 
     "nodes": "1",
     "ntasks":"8",
-    "memory":"10GB",
+    "memory":"30GB",
     "time":"2:00:00", 
     "email":"AureliaLeona2028@u.northwestern.edu",
     "mail_type":"ALL" #BEGIN, END, FAIL AND ALL
@@ -113,8 +113,6 @@ with open(job_file, 'w') as fh:
             "    --sample-sheet=${SAMPLE_SHEET_PATH}"
         ]
         fh.write('\n'.join(bcl2fastq_cmd) + '\n')
-
-os.system("sbatch %s" %job_file)
 
 result = subprocess.run(["sbatch", job_file], capture_output=True, text=True)
 if result.returncode == 0:
