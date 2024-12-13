@@ -10,40 +10,72 @@ library(readr)
 
 
 #Main ---------------------------------
-extData <- "/projects/b1042/GoyalLab/aleona/DESeq/extData/bulkRNASeq2/"
-Scripts<- "/projects/b1042/GoyalLab/aleona/DESEQ/Script/"
+extData <- "/projects/b1042/GoyalLab/aleona/bulk/extractedData/SA_HS_MP2E7/matrix/"
+Scripts<- "/projects/b1042/GoyalLab/aleona/LabPipelines/DESeqbulk/"
+output <- "/projects/b1042/GoyalLab/aleona/bulk/extractedData/SA_HS_MP2E7/DESeq/"
 
 source(paste0(Scripts, "deseqbulkfunction.R"))
 
-# extData2 <- "/projects/b1042/GoyalLab/aleona/DESeq/extData/rawData2/"
+#Create directory 
+create_dir_if_not_exists(output)
 
 countmatrix <- read_csv(paste0(extData, "countmatrix.csv"))
-#ensembl_gene
+
+#Look at what the column names are
+print(colnames(countmatrix))
+
+
+#  [1] "ensembl_gene"             "ID_HS_017_B1_sot_S84"     "ID_HS_017_B2_sot_S52"     "ID_HS_017_B3_sot_S59"    
+# [5] "ID_HS_017_gem1_S51"       "ID_HS_017_gem2_S83"       "ID_HS_017_p2a2_S85"       "ID_HS_025_tram1_S60"     
+# [9] "ID_HS_025_tram2_S69"      "ID_HS_025_tram3_S77"      "ID_HS_026_20g_20s1_S62"   "ID_HS_026_20g_20s2_S93"  
+# [13] "ID_HS_026_20g_50s_S80"    "ID_HS_026_50g_20s1_S48"   "ID_HS_026_50g_20s2_S49"   "ID_HS_026_50g_50s1_S67"  
+# [17] "ID_HS_026_50g_50s2_S76"   "ID_HS_027_12daysS1_S65"   "ID_HS_027_12daysS2_S86"   "ID_HS_027_12daysS3_S96"  
+# [21] "ID_HS_027_48hCis1_S56"    "ID_HS_027_48hCis2_S61"    "ID_HS_027_48hCis3_S88"    "ID_HS_027_48hGem1_S66"   
+# [25] "ID_HS_027_48hGem2_S73"    "ID_HS_027_48hGem3_S75"    "ID_HS_027_48hSot1_S64"    "ID_HS_027_48hSot2_S78"   
+# [29] "ID_HS_027_48hSot3_S95"    "ID_HS_027_8daysG1_S71"    "ID_HS_027_8daysG2_S92"    "ID_HS_027_8daysG3_S54"   
+# [33] "ID_HS_027_cis1_S58"       "ID_HS_027_cis2_S68"       "ID_HS_027_cis3_S90"       "ID_SA2-100_20g_20s_S79"  
+# [37] "ID_SA2-100_20g_50s_S47"   "ID_SA2-100_50g_50s_S82"   "ID_SA2-101_50g_20s_S81"   "ID_SA2-102_A1_sotGem_S91"
+# [41] "ID_SA2-102_A2_sotGem_S70" "ID_SA2-102_C1_sotR_S45"   "ID_SA2-102_C2_sotR_S57"   "ID_SA2-102_C3_sotR_S89"  
+# [45] "ID_SA2-102_P_S53"         "ID_SA2-103_A2_sotGem_S63" "ID_SA2-103_P1_S74"        "ID_SA2-104_A1_gemSot_S94"
+# [49] "ID_SA2-104_A2_gemSot_S72" "ID_SA2-104_B2_gem_S50"    "ID_SA2-104_C1_gemR_S55"   "ID_SA2-104_C2_gemR_S87"  
+# [53] "ID_SA2-104_C3_gemR_S46"  
+
+# Make ensembl_gene as the rownames for later processing 
 countmatrixdf <- column_to_rownames(as.data.frame(countmatrix),'ensembl_gene')
-countmatrixdf<- dplyr::select(countmatrixdf,-c("Cisplatin_1_S7", "Cisplatin_2_S8", "Gemcitabine_3_S14", "Gemcitabine_1_S12"))
+
+# Select the columns you would like to have in your DESeq 
+# if you want to delete the columns use -c("colname1", "colname2")
+# If you want to include the columns use c("colname1", "colname2")
+countmatrixdf<- dplyr::select(countmatrixdf,c("ID_HS_017_B1_sot_S84", "ID_HS_017_B2_sot_S52", "ID_HS_017_B3_sot_S59", "ID_HS_017_p2a2_S85","ID_SA2-102_P_S53", "ID_SA2-103_P1_S74"))
+# countmatrixdf<- dplyr::select(countmatrixdf,-c("Cisplatin_1_S7", "Cisplatin_2_S8", "Gemcitabine_3_S14", "Gemcitabine_1_S12"))
 # cts <- as.matrix.data.frame(countmatrixdf)
 
 #Make an annotation matrix 
 # First, let's create the annotation matrix
 sample_names <- colnames(countmatrixdf)[colnames(countmatrixdf) != "ensembl_gene"]
-annotation_data <- create_annotation_matrix(sample_names, patterns = "^(.+?)_.*")
+# Specify the condition and the replicate 
+condition_maps <- list(
+  "ID_HS_017_B1_sot_S84" = list(condition = "Sotorasib", replicate = 1),
+  "ID_HS_017_B2_sot_S52" = list(condition = "Sotorasib", replicate = 2),
+  "ID_HS_017_B3_sot_S59" = list(condition = "Sotorasib", replicate = 3),
+  "ID_HS_017_p2a2_S85" = list(condition = "Naive", replicate = 1),
+  "ID_SA2-102_P_S53" = list(condition = "Naive", replicate = 2),
+  "ID_SA2-103_P1_S74" = list(condition = "Naive", replicate = 3)
+)
+# Use the function to create annotation matrix 
+annotation_data <- create_annotation_matrix(sample_names, condition_mapping=condition_maps)
 
 # View the first few rows of the annotation matrix
 head(annotation_data)
 
+# Create a factor level so the comparison will be Naive vs Sotorasib 
 # annotate_data <- column_to_rownames(as.data.frame(annotate_data),'sample') 
-# annotate_data <- annotate_data %>%
-#   filter(!(condition == "Gemcitabine" & replicate == 2))
+# annotate_data <- annotate_data %>% filter(!(condition == "Gemcitabine" & replicate == 2))
 # annotation_data$condition <- factor(annotation_data$condition, levels = c("naive", "Gemcitabine", "Sotorasib", "Cisplatin"))
-annotation_data$condition <- factor(annotation_data$condition, levels = c("naive", "Sotorasib"))
-write_csv(annotation_data, paste0(extData,"annotationmatrix.csv"))
+annotation_data$condition <- factor(annotation_data$condition, levels = c("Naive", "Sotorasib"))
+write_csv(annotation_data, paste0(output,"annotationmatrix.csv"))
 
-# annotate_data <- annotate_data %>%
-#   group_by(condition) %>%  # Group by the 'condition' column
-#   # mutate(replicate = row_number()) %>%  # Add a 'replicate' column with sequential numbering
-#   ungroup() %>%
-#   as.data.frame() # Remove the grouping
-
+# Start deseq 
 dds <- DESeqDataSetFromMatrix(countData = countmatrixdf,
                               colData = annotation_data,
                               design = ~ condition)
@@ -70,18 +102,18 @@ dds <- dds[keep,]
 # res_naive_vs_sotarasib <- res_naive_vs_sotarasib %>% filter(padj < 0.05)
 
 #Naive samples
-contrast_info <- c("condition", "Sotorasib", "naive")
+contrast_info <- c("condition", "Sotorasib", "Naive")
 padj_threshold <- 0.05
 
 # Relevel the condition factor to indicate that the reference is naive
-dds$condition <- relevel(dds$condition, ref = "naive")
+dds$condition <- relevel(dds$condition, ref = "Naive")
 
 # Perform DESeq analysis
 dds <- DESeq(dds)
 
 # Get results for the specified comparison
 full_results <- results(dds, contrast = contrast_info)
-saveRDS(full_results, paste0(extData, "DESeqResults0.1_nvS.rds"))
+saveRDS(full_results, paste0(output, "DESeqResultnvS.rds"))
 
 
 #Adding gene_id to ENSEMBL only data and combine--------------------------------
@@ -105,7 +137,7 @@ all_results <- combine_deseq_results(filtered_results_list, gene_id, comparisons
 
 ##Match Protein Classes ------------------------------------------
 #Read the Protein atlast database 
-proteinatlas <- read_tsv("/projects/b1042/GoyalLab/aleona/DESeq/Protein_data/proteinatlas.tsv", 
+proteinatlas <- read_tsv("/projects/b1042/GoyalLab/aleona/bulk/Protein_data/proteinatlas.tsv", 
                          col_names = TRUE, 
                          show_col_types = FALSE)
 
@@ -127,8 +159,8 @@ saveabove2 <- ordered %>% filter(log2FoldChange > 2 ) %>% filter(padj < 0.05 )
 
 #Saving results 
 # write_csv(saveabove2, paste0(extData2, "keeptrackSep32024.csv"))
-write_csv(all_results, paste0(extData, "DESeqwithgeneid_NaivevsSotfull2.csv"))
-write_csv(saveabove2, paste0(extData, "DESeq_NvSabsLFCresult.csv"))
+write_csv(all_results, paste0(output, "DESeqwithgeneid_NaivevsSotfull.csv"))
+write_csv(saveabove2, paste0(output, "DESeq_NvSabsLFCresult.csv"))
 saveRDS(dds, paste0(extData, "DESEQ.rds"))
 
 #Filter the data------------------------------------------
@@ -147,15 +179,15 @@ genecountdata <- rownames_to_column(genecountdata, "ensembl_gene")
 over_all <- left_join(over, genecountdata, by = "ensembl_gene")
 under_all <- left_join(under, genecountdata, by = "ensembl_gene")
 
-write_csv(over_all, paste0(extData, "overexpress.csv"))
-write_csv(under_all, paste0(extData, "underexpress.csv"))
+write_csv(over_all, paste0(output, "overexpress.csv"))
+write_csv(under_all, paste0(output, "underexpress.csv"))
 
 #Filter just surfaceproteins 
 over_sprotein <- over_all %>% filter(`Protein Class`=="Surface Proteins")
 under_sprotein <- under_all %>% filter(`Protein Class`=="Surface Proteins")
 
-write_csv(over_sprotein, paste0(extData, "overexpress_surfaceprot.csv"))
-write_csv(under_sprotein, paste0(extData, "underexpress_surfaceprot.csv"))
+write_csv(over_sprotein, paste0(output, "overexpress_surfaceprot.csv"))
+write_csv(under_sprotein, paste0(output, "underexpress_surfaceprot.csv"))
 
 
 # saveabove2 <- read_csv("/projects/b1042/GoyalLab/aleona/DESeq/extData/DESeq_NvSabsLFCresult.csv")
