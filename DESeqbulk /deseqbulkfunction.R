@@ -53,7 +53,7 @@ lapply(required_packages, library, character.only = TRUE)
 #'
 #' @note The function will issue a warning if the match_pattern doesn't match 
 #'       the cleaned filename.
-extract_sample_name <- function(filename, lane_identifier = "L001", pattern = NULL) {
+extract_sample_name <- function(filename, pattern = NULL) {
   # If no pattern is provided, use the default pattern
   if (is.null(pattern)) {
     # .*?: Matches any character (except newline) zero or more times, as few times as possible (non-greedy).
@@ -65,10 +65,10 @@ extract_sample_name <- function(filename, lane_identifier = "L001", pattern = NU
   }
   
   # Combine the pattern with the lane identifier
-  full_pattern <- paste0(pattern, lane_identifier)
+  # full_pattern <- paste0(pattern, lane_identifier)
   
   # Extract the match
-  match <- regexpr(full_pattern, filename, perl = TRUE)
+  match <- regexpr(pattern, filename, perl = TRUE)
   
   if (match == -1) {
     warning("Pattern not found in the filename.")
@@ -103,10 +103,9 @@ create_dir_if_not_exists <- function(dir_path) {
 
 
 
-###
 create_annotation_matrix <- function(sample_names, 
                                      sample_type = "paired-end",
-                                     condition_mapping = NULL, patterns) {
+                                     condition_mapping = NULL) {
   
   # Create the initial annotation matrix
   annotation_matrix <- data.frame(
@@ -114,24 +113,55 @@ create_annotation_matrix <- function(sample_names,
     type = sample_type,
     stringsAsFactors = FALSE
   )
+  # Explanation of the regex for replicate extraction:
+  # .*          : Matches any characters at the beginning of the string.
+  # (?:...)     : This is a non-capturing group. It groups parts of the regex without creating a backreference.
+  # [_-]        : Matches either an underscore or a dash.
+  # ([A-Za-z])  : Captures any single letter (uppercase or lowercase) in the first capturing group.
+  # (\\d)       : Captures a single digit in the second capturing group.
+  # "|"         : This is an OR operator. It separates two alternative patterns.
+  # [_-](\\d)[_-] : This is the second alternative. It matches an underscore or dash, followed by a digit (captured in the third group), followed by another underscore or dash.
+  # .*          : Matches any characters at the end of the string.
+  # "\\2\\3"    : In the replacement part, this refers to either the second capture group (the digit after a letter) or the third capture group (the digit between underscores/dashes), whichever was matched.
+  # perl = TRUE : This enables Perl-compatible regular expressions, which support more advanced features.
   
-  # Add condition based on sample names
-  if (is.null(condition_mapping)) {
-    # Use the first value before underscore as condition
-    annotation_matrix <- annotation_matrix %>%
-      mutate(condition = sub("^(.+?)_.*", "\\1", sample))
-  } else {
-    # Use provided condition mapping
-    annotation_matrix <- annotation_matrix %>%
-      mutate(condition = condition_mapping[sample])
+  # Function to extract replicate from sample name
+  extract_replicate <- function(sample) {
+    as.integer(sub(".*(?:[_-]([A-Za-z])(\\d)[_-]|[_-](\\d)[_-]).*", "\\2\\3", sample, perl = TRUE))
   }
-  # Add replicate number
-  annotation_matrix <- annotation_matrix %>%
-    mutate(replicate = as.integer(sub(".*_(\\d+)_.*", "\\1", sample)))
   
-  # Set row names and remove sample column
+  # Function to extract condition from sample name
+  extract_condition <- function(sample) {
+    sub("^(.+?)_.*", "\\1", sample)
+  }
+  
+  if (is.null(condition_mapping)) {
+    # Case 1: No condition mapping provided
+    annotation_matrix <- annotation_matrix %>%
+      mutate(
+        condition = sapply(sample, extract_condition),
+        replicate = sapply(sample, extract_replicate)
+      )
+  } else if (is.character(condition_mapping)) {
+    # Case 2: Condition mapping with only conditions
+    annotation_matrix <- annotation_matrix %>%
+      mutate(
+        condition = condition_mapping[sample],
+        replicate = sapply(sample, extract_replicate)
+      )
+  } else if (is.list(condition_mapping)) {
+    # Case 3: Condition mapping with both conditions and replicates
+    annotation_matrix <- annotation_matrix %>%
+      mutate(
+        condition = sapply(sample, function(s) condition_mapping[[s]]$condition),
+        replicate = sapply(sample, function(s) condition_mapping[[s]]$replicate)
+      )
+  } else {
+    stop("Invalid condition_mapping format")
+  }
+  
+  # Set row names
   rownames(annotation_matrix) <- annotation_matrix$sample
-  # annotation_matrix$sample <- NULL
   
   return(annotation_matrix)
 }
@@ -186,6 +216,45 @@ combine_deseq_results <- function(result_list, gene_id_df, comparisons, padj_thr
   return(all_results)
 }
 
+
+# Just adding the gene names 
+add_gene_names <- function(count_matrix, gene_id_df) {
+  # Load required package
+  # if (!requireNamespace("dplyr", quietly = TRUE)) {
+  #   stop("dplyr package is required but not installed. Please install it using install.packages('dplyr')")
+  # }
+  # 
+  # Ensure count_matrix has ensembl_gene as a column
+  if (!("ensembl_gene" %in% colnames(count_matrix))) {
+    count_matrix <- dplyr::mutate(count_matrix, ensembl_gene = rownames(count_matrix))
+  }
+  
+  # Trim whitespace and convert to uppercase for both dataframes
+  count_matrix$ensembl_gene <- toupper(trimws(count_matrix$ensembl_gene))
+  gene_id_df$ensembl_gene_id <- toupper(trimws(gene_id_df$ensembl_gene_id))
+  
+  # Perform the join
+  result <- count_matrix %>%
+    dplyr::left_join(gene_id_df, by = c("ensembl_gene" = "ensembl_gene_id")) %>%
+    dplyr::select(ensembl_gene, external_gene_name, dplyr::everything())
+  
+  # Count and print the number of NAs
+  na_count <- sum(is.na(result$external_gene_name))
+  total_count <- nrow(result)
+  print(paste("Number of NAs:", na_count, "out of", total_count, "total rows"))
+  
+  # Print some examples of unmatched gene IDs
+  if (na_count > 0) {
+    unmatched <- result %>% 
+      dplyr::filter(is.na(external_gene_name)) %>% 
+      dplyr::select(ensembl_gene) %>% 
+      head(5)
+    print("Examples of unmatched gene IDs:")
+    print(unmatched)
+  }
+  
+  return(result)
+}
 
 match_and_classify_proteins <- function(ordered_data, match_column, proteinatlas) {
   proteinatlas_prepared <- proteinatlas %>%
