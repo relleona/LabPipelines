@@ -6,11 +6,11 @@ library(tidyverse)
 
 
 ##Main----------------------------------
-pathToFiles = "/projects/b1042/GoyalLab/aleona/STARAlignmentforBulk/extData/SA_HS_MP2E7/results/"
+pathToFiles = "/projects/b1042/GoyalLab/aleona/STARAlignmentforBulk/extData2/NK_H23/results/"
 # pathToFiles = "/projects/b1042/GoyalLab/aleona/DESEQ/rawData/bulkRNASeq/"
-extData <- "/projects/b1042/GoyalLab/aleona/DESeqbulk/extractedData/SA_HS_MP2E7/matrix/"
+extData <- "/projects/b1042/GoyalLab/aleona/bulk/extractedData/NK_H23/matrix/"
 # extData <- "/projects/b1042/GoyalLab/aleona/DESEQ/extData/rawdata1/"
-Scripts<- "/projects/b1042/GoyalLab/aleona/DESeqbulk/Script/"
+Scripts<- "/projects/b1042/GoyalLab/aleona/LabPipelines/DESeqbulk /"
 
 source(paste0(Scripts, "deseqbulkfunction.R"))
 
@@ -23,7 +23,8 @@ files <- list.files(path = pathToFiles,
                     full.names = TRUE)
 
 # only check for L001
-filtered_files <- files[grepl("L001", files, fixed = TRUE)]
+# filtered_files <- files[grepl("L001", files, fixed = TRUE)]
+filtered_files <- files
 
 # Define your patterns
 # .*?: Matches any character (except newline) zero or more times, as few times as possible (non-greedy).
@@ -37,7 +38,7 @@ match_pattern <- ".*?(\\w+[-_]\\w+[-_]S\\w+).*?"
 
 # Process files
 datasets <- map_chr(filtered_files, function(file) {
-    extract_sample_name(file, "L001", match_pattern)
+    extract_sample_name(file, match_pattern)
   }
 )
 
@@ -120,6 +121,7 @@ strandWiseCounts <- finaltable %>%
     propR = reversestrand / unstranded   # Calculate the proportion of reversestrand to unstranded
   )
 
+
 #Create Annotation matrix
 countmatrix <- finaltable
 
@@ -134,6 +136,27 @@ names(countmatrix) <- str_replace(names(countmatrix), "_unstranded", "")
 write_csv(finaltable, paste0(extData,"finaltable.csv"))
 write_csv(strandWiseCounts, paste0(extData,"strandWiseCounts.csv"))
 write_csv(countmatrix, paste0(extData,"countmatrix.csv"))
+
+
+#Adding gene_id to ENSEMBL only data and combine--------------------------------
+ensembl.ids <- countmatrix['ensembl_gene']
+
+ensembl_98 <- useEnsembl(biomart = 'genes', 
+                         dataset = 'hsapiens_gene_ensembl',
+                         version = 98)
+
+gene_id <- getBM(attributes = c('ensembl_gene_id','external_gene_name'),
+                 filters = "ensembl_gene_id",
+                 values = ensembl.ids$ensembl_gene,
+                 mart = ensembl_98)
+
+
+all_results <- add_gene_names(countmatrix, gene_id)
+
+write_csv(all_results, paste0(extData,"countmatrixwithgenename.csv"))
+
+
+
 
 
           
