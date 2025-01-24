@@ -284,3 +284,43 @@ match_and_classify_proteins <- function(ordered_data, match_column, proteinatlas
 }
 
 
+plotDEseqVolcano <- function(deseqResult, padjCutoff = 0.05, log2FCCutoff = 1, geneNameCol = "external_gene_name", maxOverlaps = 20) {
+  
+  # Parameters:
+  #   deseqResult: data frame containing DESeq2 results (required)
+  #   padjCutoff: adjusted p-value threshold for significance (default: 0.05) 
+  #   log2FCCutoff: absolute log2 fold change threshold for significance (default: 1)
+  #   geneNameCol: name of column containing gene names/IDs for labeling points (default: "external_gene_name")
+  #   maxOverlaps: maximum number of allowed text label overlaps in the output plot (default: 20). Higher values show more labels but may cause crowding
+  
+  # Returns:
+  #   ggplot object of the volcano plot
+  
+  plot <- ggplot(as.data.frame(deseqResult), aes(x = log2FoldChange, y = -log10(padj))) +
+    geom_point(aes(color = case_when(
+      padj < padjCutoff & log2FoldChange > log2FCCutoff ~ "up",
+      padj < padjCutoff & log2FoldChange < -log2FCCutoff ~ "down",
+      TRUE ~ "ns"
+    ))) +
+    scale_color_manual(values = c("up" = "red", "down" = "blue", "ns" = "gray")) +
+    geom_vline(xintercept = c(-log2FCCutoff, log2FCCutoff), linetype = "dashed", color = "darkgray") +
+    geom_hline(yintercept = -log10(padjCutoff), linetype = "dashed", color = "darkgray") +
+    geom_text_repel(
+      data = subset(deseqResult, padj < padjCutoff & abs(log2FoldChange) > log2FCCutoff),
+      aes(label = !!sym(geneNameCol),
+          color = case_when(
+            log2FoldChange > log2FCCutoff ~ "up",
+            log2FoldChange < -log2FCCutoff ~ "down",
+            TRUE ~ "ns"
+          )),
+      size = 3,
+      max.overlaps = maxOverlaps
+    ) +
+    labs(x = "log2(foldChange)",
+         y = "-log10(adj. p-value)") +
+    theme_classic() +
+    theme(legend.position = "none")
+  
+  return(plot)
+}
+
